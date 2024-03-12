@@ -61,6 +61,17 @@ func (t *Task) DeleteSnapshot(snapshot string) error {
 	return t.client.DeleteSnapshot(snapshot)
 }
 
+func cleanAddr(replicaAddress string) string {
+	// This is a hack to sort out the replica ip address issue.
+	// This should be properly handled in future, e.g. with netip.Addr as the replica addr.
+	addr := strings.Split(replicaAddress, "://")
+	parts := strings.Split(addr[1], ":")
+	if len(parts) > 0 {
+		parts = parts[:len(parts)-1]
+	}
+	return strings.Join(parts, ":")
+}
+
 func getNameAndIndex(chain []string, snapshot string) (string, int) {
 	index := find(chain, snapshot)
 	if index < 0 {
@@ -106,8 +117,6 @@ Register:
 	if err != nil {
 		return err
 	}
-	addr := strings.Split(replicaAddress, "://")
-	parts := strings.Split(addr[1], ":")
 	Replica, _ := replica.CreateTempReplica(s)
 	server, _ := replica.CreateTempServer(s)
 
@@ -116,7 +125,7 @@ Register:
 		replicaType := "quorum"
 		upTime := time.Since(Replica.ReplicaStartTime)
 		state, _ := server.PrevStatus()
-		_ = t.client.Register(parts[0], Replica.Info().UUID, revisionCount, replicaType, upTime, string(state))
+		_ = t.client.Register(cleanAddr(replicaAddress), Replica.Info().UUID, revisionCount, replicaType, upTime, string(state))
 		select {
 		case <-ticker.C:
 			goto Register
@@ -258,15 +267,14 @@ Register:
 	if err != nil {
 		return fmt.Errorf("failed to get volume info, error: %s", err.Error())
 	}
-	addr := strings.Split(replicaAddress, "://")
-	parts := strings.Split(addr[1], ":")
+
 	if volume.ReplicaCount == 0 {
 		revisionCount := Replica.GetRevisionCounter()
 		replicaType := "Backend"
 		upTime := time.Since(Replica.ReplicaStartTime)
 		state, _ := server.PrevStatus()
 		logrus.Infof("Register replica at controller")
-		err := t.client.Register(parts[0], Replica.Info().UUID, revisionCount, replicaType, upTime, string(state))
+		err := t.client.Register(cleanAddr(replicaAddress), Replica.Info().UUID, revisionCount, replicaType, upTime, string(state))
 		if err != nil {
 			logrus.Errorf("Error in sending register command, error: %s", err)
 		}
