@@ -84,6 +84,13 @@ func (t *goTgt) Startup(name string, frontendIP string, clusterIP string, size, 
 					continue
 				}
 				break
+			} else if ipv6 := addr.To16(); ipv6 != nil {
+				// second try: handle addr as v6 address only if we know it is not v4
+				frontendIP = ipv6.String()
+				if frontendIP == "::1" {
+					continue
+				}
+				break
 			}
 		}
 	}
